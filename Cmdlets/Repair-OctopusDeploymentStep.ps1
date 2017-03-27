@@ -1,7 +1,8 @@
 function Repair-OctopusDeploymentStep {
     param(
         [Parameter(Mandatory)]$ProjectName,
-        [Parameter(Mandatory)]$ReleaseNumber    
+        [Parameter(Mandatory)]$ReleaseNumber,
+        [Parameter(Mandatory)]$StepNumber
     )
     $project = Invoke-OctopusApi /projects/all | ? Name -eq $ProjectName
     if ($project) { Write-Host "Found project $($project.Name) ($($project.Id))" }
@@ -10,19 +11,14 @@ function Repair-OctopusDeploymentStep {
     $release = Invoke-OctopusApi "$($project.Links.Self)/releases/$ReleaseNumber"
     Write-Host "Found release $($release.Version) ($($release.Id))" 
 
-    $deploymentProcess = Invoke-OctopusApi $project.Links.DeploymentProcess
-    
-    $i = 0
-    $choice = $Host.UI.PromptForChoice("Deployment Step", "Select Deployment Step to change", ([System.Management.Automation.Host.ChoiceDescription[]]($deploymentProcess.Steps | % {
-        $i++
-        New-Object System.Management.Automation.Host.ChoiceDescription "&$i $($_.Name)"
-    })), -1)
-    $stepId = $deploymentProcess.Steps[$choice].Id
+    $deploymentProcess = Invoke-OctopusApi $project.Links.DeploymentProcess 
+    $StepNumber--
+    Write-Host "Step: $($deploymentProcess.Steps[$StepNumber].Name)"
 
-    $releaseStep = Invoke-OctopusApi $release.Links.ProjectDeploymentProcessSnapshot | % Steps | ? Id -eq $stepId
-    if (!$releaseStep) { throw "Unable to find deployment step ($stepId) in release $($release.Version)" }
+    $releaseStep = Invoke-OctopusApi $release.Links.ProjectDeploymentProcessSnapshot | % Steps | ? Name -eq $deploymentProcess.Steps[$StepNumber].Name 
+    if (!$releaseStep) { throw "Unable to find deployment step in release $($release.Version)" }
 
-    Write-Host "Current Step:`n$($deploymentProcess.Steps[$choice] | ConvertTo-Json -Depth 99)`n"
+    Write-Host "Current Step:`n$($deploymentProcess.Steps[$StepNumber] | ConvertTo-Json -Depth 99)`n"
     Write-Host "New Step:`n$($releaseStep | ConvertTo-Json -Depth 99)`n"
 
     if ($Host.UI.PromptForChoice("Confirm Update", "Are you sure?", ([System.Management.Automation.Host.ChoiceDescription[]](
@@ -30,7 +26,10 @@ function Repair-OctopusDeploymentStep {
         (New-Object System.Management.Automation.Host.ChoiceDescription "&No", "Do not update the step")
     )), 1) -ne 0) { return }
 
-    $deploymentProcess.Steps[$choice] = $releaseStep
+    $preservedId = $deploymentProcess.Steps[$StepNumber].Id
+    $deploymentProcess.Steps[$StepNumber] = $releaseStep
+    $deploymentProcess.Steps[$StepNumber].Id = $preservedId
+
     $updatedDeploymentProcess = Invoke-OctopusApi $project.Links.DeploymentProcess -Method Put -Body $deploymentProcess
     Write-Host "Deployment process updated" -ForegroundColor Green
 }
