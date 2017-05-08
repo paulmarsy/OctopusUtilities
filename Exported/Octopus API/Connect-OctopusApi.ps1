@@ -18,10 +18,10 @@ function Connect-OctopusApi {
                 ApiKey = $ApiKey
             }
         }
+
         if (Invoke-OctopusApi '/' | ? Application -eq "Octopus Deploy") {
             Write-Host -ForegroundColor Green "Connection successful."
         }
-
         if (Get-Module CloudStorage) {
             Set-CloudStorage OctopusUtilities -Local $ExecutionContext.SessionState.Module.PrivateData['OctopusApi']
         }
