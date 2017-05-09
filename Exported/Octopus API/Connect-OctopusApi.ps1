@@ -1,13 +1,11 @@
 function Connect-OctopusApi {
     param(
-        [Parameter(ParameterSetName = 'Module',Mandatory)]$Uri,
-        [Parameter(ParameterSetName = 'Module',Mandatory)]$ApiKey,
-        [Parameter(ParameterSetName = 'CloudStorage',Mandatory)][switch]$CloudStorage
+        $Uri,
+        $ApiKey
     )
     
-    $success = $false
     try {
-        if ($CloudStorage) {
+        if (!$Uri -and !$ApiKey) {
             $ExecutionContext.SessionState.Module.PrivateData['OctopusApi'] = Get-CloudStorage OctopusUtilities -Local
         } else {
             $baseUri = $Uri.Trim('/')
@@ -21,8 +19,6 @@ function Connect-OctopusApi {
 
         if (Invoke-OctopusApi '/' | ? Application -eq "Octopus Deploy") {
             Write-Host -ForegroundColor Green "Connection successful."
-        }
-        if (Get-Module CloudStorage) {
             Set-CloudStorage OctopusUtilities -Local $ExecutionContext.SessionState.Module.PrivateData['OctopusApi']
         }
     }

@@ -1,7 +1,7 @@
 function Get-OctopusActionTemplate {
     param($ActionTemplateName)
-    $project = Invoke-OctopusApi '/api/projects/all' | ? Name -eq $ProjectName
-    if ($project) { Write-Host "Found project $($project.Name) ($($project.Id))" }
-    else { throw "Unable to find project $ProjectName" }
-    return $project
+    $stepTemplate = Invoke-OctopusApi '/api/actiontemplates/all' | ? Name -eq $ActionTemplateName
+    if ($stepTemplate) { Write-Host "Found step template $($stepTemplate.Name) ($($stepTemplate.Id))" }
+    else { throw "Unable to find step template $ActionTemplateName" }
+    return $stepTemplate
 }

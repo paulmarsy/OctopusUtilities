@@ -1,8 +1,8 @@
 function Start-OctopusProjectDeployment {
     param(
-        $Project
-        $Release
-        $Environment
+        $Project,
+        $Release,
+        $Environment,
         [switch]$PassThru
     )
 }
