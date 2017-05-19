@@ -1,43 +1,37 @@
 function Copy-OctopusDeploymentStep {
     param(
-        [Parameter(Mandatory)]$ProjectName,
-        [Parameter()]$DestProjectName,
-        [Parameter(Mandatory)]$StepNumber
+        [Parameter(Mandatory)][string]$Project,
+        [Parameter()][string]$DestProject
     )
 
-    $deploymentProcess = Get-OctopusProject $ProjectName | % { Invoke-OctopusApi $_.Links.DeploymentProcess }
-    $destDeploymentProcess = Get-OctopusProject $DestProjectName | % { Invoke-OctopusApi $_.Links.DeploymentProcess }
-    Export-OctopusObject "$ProjectName DeploymentProcess" $deploymentProcess.Links.Self
-
-    $StepNumber--
-    Write-Host "Step: $($deploymentProcess.Steps[$StepNumber].Name)"
-
-    $process.Steps | % Actions | ? { $_.Properties.'Octopus.Action.Template.Id' -eq $OldTemplate.Id } | % { 
-        Write-Host "Updating $($_.Name)..."
-         $_.Properties.'Octopus.Action.Template.Id' = $NewTemplate.Id
-         $_.Properties.'Octopus.Action.Template.Version' = $NewTemplate.Version
+    function Update-DeploymentProcess($DeploymentProcessObject) {
+        Write-Host -NoNewLine 'Commiting changes... '
+        Invoke-OctopusApi -Uri $DeploymentProcessObject.Links.Self -Method Put -Body $DeploymentProcessObject | Out-Null
+        Write-Host -ForegroundColor Green 'done'
     }
-    Write-Host -NoNewLine 'Commiting changes... '
-    Invoke-OctopusApi -Uri $process.Links.Self -Method Put -Body $process | Out-Null
-    Write-Host -ForegroundColor Green 'done'
-
-
-
-    $releaseStep = Invoke-OctopusApi $release.Links.ProjectDeploymentProcessSnapshot | % Steps | ? Name -eq $deploymentProcess.Steps[$StepNumber].Name 
-    if (!$releaseStep) { throw "Unable to find deployment step in release $($release.Version)" }
-
-    Write-Host "Current Step:`n$($deploymentProcess.Steps[$StepNumber] | ConvertTo-Json -Depth 99)`n"
-    Write-Host "New Step:`n$($releaseStep | ConvertTo-Json -Depth 99)`n"
-
-    if ($Host.UI.PromptForChoice("Confirm Update", "Are you sure?", ([System.Management.Automation.Host.ChoiceDescription[]](
-        (New-Object System.Management.Automation.Host.ChoiceDescription "&Yes", "Update the step"),
-        (New-Object System.Management.Automation.Host.ChoiceDescription "&No", "Do not update the step")
-    )), 1) -ne 0) { return }
-
-    $preservedId = $deploymentProcess.Steps[$StepNumber].Id
-    $deploymentProcess.Steps[$StepNumber] = $releaseStep
-    $deploymentProcess.Steps[$StepNumber].Id = $preservedId
-
-    $updatedDeploymentProcess = Invoke-OctopusApi $project.Links.DeploymentProcess -Method Put -Body $deploymentProcess
-    Write-Host "Deployment process updated" -ForegroundColor Green
+    function Find-AvailableName([string[]]$Names, [string]$Name) {
+        $availableName = $Name
+        $i = 0
+        while ($Names -contains $availableName) {
+            $i++
+            $availableName = '{0} ({1})' -f $Name, $i
+        }
+        $availableName
+    }
+    $deploymentProcess = Get-OctopusProject $Project | % { Invoke-OctopusApi $_.Links.DeploymentProcess }
+    $stepToCopy = Select-DeploymentStep $deploymentProcess
+    $stepToCopy.Id = $null
+    $stepToCopy.Actions | % { $_.Id = $null }
+    if ($DestProject) {
+        $destDeploymentProcess = Get-OctopusProject $DestProject | % { Invoke-OctopusApi $_.Links.DeploymentProcess }
+        $stepToCopy.Name = Find-AvailableName ($destDeploymentProcess.Steps | % Name) $stepToCopy.Name
+        $stepToCopy.Actions | % { $_.Name = Find-AvailableName ($destDeploymentProcess.Steps | % Actions | % Name) $_.Name }
+        $destDeploymentProcess.Steps += $stepToCopy
+        Update-DeploymentProcess $destDeploymentProcess
+    } else {
+        $stepToCopy.Name = Find-AvailableName ($deploymentProcess.Steps | % Name) $stepToCopy.Name
+        $stepToCopy.Actions | % { $_.Name = Find-AvailableName ($deploymentProcess.Steps | % Actions | % Name) $_.Name }
+        $deploymentProcess.Steps += $stepToCopy
+        Update-DeploymentProcess $deploymentProcess
+    }
 }
