@@ -1,4 +1,4 @@
-function Copy-OctopusDeploymentStep {
+function Copy-OctopusProjectStep {
     param(
         [Parameter(Mandatory)][string]$Project,
         [Parameter()][string]$DestProject

@@ -1,3 +1,5 @@
+$script:ProgressPreference = 'SilentlyContinue'
+
 Get-ChildItem -File -Filter *.ps1 -Path (Join-Path $PSScriptRoot 'Internal') -Recurse | % {
 	. $_.FullName
 }
